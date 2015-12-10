@@ -1,4 +1,4 @@
 p = Port(driver = 'NativeVport')
 
-Source() -> TimeStamp() -> PortOut(arg=p)
+Source() -> Timestamp() -> PortOut(arg=p)
 PortInc(arg=p) -> Measure() -> Sink()
