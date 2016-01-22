@@ -1,0 +1,10 @@
+src_min_ip = int($SRC_MIN_IP!'1')
+src_max_ip = int($SRC_MAX_IP!'255')
+dst_min_ip = int($DST_MIN_IP!'256')
+dst_max_ip = int($DST_MAX_IP!'65535')
+print 'Using src min ip: %d (envvar "SRC_MIN_IP")' % src_min_ip
+print 'Using src max ip: %d (envvar "SRC_MAX_IP")' % src_max_ip
+print 'Using dst min ip: %d (envvar "DST_MIN_IP")' % dst_min_ip
+print 'Using dst max ip: %d (envvar "DST_MAX_IP")' % dst_max_ip
+
+Source() -> RandomPacket({'src_min_ip': src_min_ip, 'src_max_ip': src_max_ip, 'dst_min_ip': dst_min_ip, 'dst_max_ip': dst_max_ip}) -> Sink()
