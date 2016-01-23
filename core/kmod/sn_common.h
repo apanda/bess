@@ -32,9 +32,29 @@
 #ifndef _SN_COMMON_H_
 #define _SN_COMMON_H_
 
+#define SNBUF_MBUF			128
+#define SNBUF_IMMUTABLE			64
+#define SNBUF_METADATA			128
+#define SNBUF_SCRATCHPAD		64
+#define SNBUF_RESERVE			(SNBUF_IMMUTABLE + \
+					 SNBUF_METADATA + \
+					 SNBUF_SCRATCHPAD)
 #define SNBUF_HEADROOM			128
 #define SNBUF_DATA			1536
-#define SNBUF_TAIL_RESERVE		128
+
+#define SNBUF_IMMUTABLE_OFF		SNBUF_MBUF
+
+#define SNBUF_METADATA_OFF		(SNBUF_IMMUTABLE_OFF + \
+					 SNBUF_IMMUTABLE)
+
+#define SNBUF_SCRATCHPAD_OFF		(SNBUF_METADATA_OFF + \
+					 SNBUF_METADATA)
+
+#define SNBUF_HEADROOM_OFF		(SNBUF_SCRATCHPAD_OFF + \
+					 SNBUF_SCRATCHPAD)
+
+#define SNBUF_DATA_OFF			(SNBUF_HEADROOM_OFF + \
+					 SNBUF_HEADROOM)
 
 #include <linux/if_ether.h>
 
@@ -89,8 +109,19 @@ struct sn_conf_space {
 	uint8_t link_on;
 	uint8_t promisc_on;
 
-	/* Indicate whether device is in loopback mode */
-	uint8_t loopback;
+	struct tx_queue_opts
+	{
+		/* If set, the driver will push tags for all xmitted packets.
+		 * Both are in host order. */
+		uint16_t tci;
+		uint16_t outer_tci;
+	} txq_opts;
+
+	struct rx_queue_opts
+	{
+		uint8_t loopback;
+	} rxq_opts;
+
 } __attribute__((__aligned__(64)));
 
 struct sn_rxq_registers {
@@ -108,20 +139,17 @@ struct sn_rxq_registers {
 
 /* Driver -> SoftNIC metadata for TX packets */
 struct sn_tx_metadata {
-	uint16_t length;
-
 	/* Both are relative offsets from the beginning of the packet.
 	 * The sender should set csum_start to CSUM_DONT
 	 * if no checksumming is wanted (csum_dest is undefined).*/
 	uint16_t csum_start;
 	uint16_t csum_dest;
+};
 
-	uint16_t nr_frags;
+struct sn_tx_desc {
+	uint16_t total_len;
 
-	uint64_t frag_addr[SN_TX_FRAG_MAX_NUM];
-	uint16_t frag_len[SN_TX_FRAG_MAX_NUM];
-
-	void *skb;
+	struct sn_tx_metadata meta;
 };
 
 #define SN_RX_CSUM_UNEXAMINED		0
@@ -130,23 +158,27 @@ struct sn_tx_metadata {
 #define SN_RX_CSUM_CORRECT		3
 #define SN_RX_CSUM_CORRECT_ENCAP	4
 
-/* SoftNIC -> Driver metadata for RX packets */
 struct sn_rx_metadata {
-	uint16_t length;
-	
 	/* Maximum TCP "payload" size among coalesced packets.
 	 * 0 for non-coalesed packets */
 	uint16_t gso_mss;	
 
 	uint8_t	csum_state;	/* SN_RX_CSUM_* */
+};
 
-	/* mode-specific attributes */
-	union {
-		struct {
-			uint16_t seg_len;
-			phys_addr_t seg_next;
-		} host;
-	};
+/* BESS -> Driver descriptor for RX packets */
+struct sn_rx_desc {
+	uint32_t total_len;
+
+	/* Only the following three fields are valid for non-head segments */
+	uint16_t seg_len;
+	phys_addr_t seg; 	/* where's the actual data? */
+
+	/* The physical address of next snbuf
+	 * (forms a NULL-terminating linked list) */
+	phys_addr_t next;		
+
+	struct sn_rx_metadata meta;
 };
 
 /* BAR layout

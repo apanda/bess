@@ -68,13 +68,15 @@ source_run_task(struct module *m, void *arg)
 
 	const int pkt_overhead = 24;
 
-	uint64_t total_bytes = 0;
+	uint64_t total_bytes = priv->pkt_size * MAX_PKT_BURST;
 
 	const int cnt = snb_alloc_bulk(batch.pkts, MAX_PKT_BURST, 
 			priv->pkt_size);
-	batch.cnt = cnt;
 
-	run_next_module(m, &batch);
+	if (cnt > 0) {
+		batch.cnt = cnt;
+		run_next_module(m, &batch);
+	}
 
 	ret = (struct task_result) {
 		.packets = cnt,

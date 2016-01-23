@@ -1,6 +1,10 @@
 #ifndef _SNBUF_AVX_H_
 #define _SNBUF_AVX_H_
 
+#ifndef _SNBUF_H_
+	#error "Do not directly include this file. Include snbuf.h instead."
+#endif
+
 static inline int
 snb_alloc_bulk(snb_array_t snbs, int cnt, uint16_t len)
 {
@@ -9,13 +13,6 @@ snb_alloc_bulk(snb_array_t snbs, int cnt, uint16_t len)
 
 	__m128i mbuf_template;	/* 256-bit write was worse... */
 	__m128i rxdesc_fields;
-
-#if OLD_METADATA
-	ct_assert(SNBUF_SIZE == 16);
-
-	__m128i snb_template;
-	snb_template = *((__m128i *)&snbuf_template._snbuf_start);
-#endif
 
 #if DPDK >= DPDK_VER(2, 1, 0)
 	/* DPDK 2.1
@@ -49,17 +46,11 @@ snb_alloc_bulk(snb_array_t snbs, int cnt, uint16_t len)
 		struct snbuf *snb0 = snbs[i];
 		struct snbuf *snb1 = snbs[i + 1];
 
-#if OLD_METADATA
-		*((__m128i *)&snb0->_snbuf_start) = snb_template;
-#endif
 		_mm_store_si128((__m128i *)&snb0->mbuf.buf_len, 
 				mbuf_template);
 		_mm_store_si128((__m128i *)&snb0->mbuf.packet_type, 
 				rxdesc_fields);
 
-#if OLD_METADATA
-		*((__m128i *)&snb1->_snbuf_start) = snb_template;
-#endif
 		_mm_store_si128((__m128i *)&snb1->mbuf.buf_len, 
 				mbuf_template);
 		_mm_store_si128((__m128i *)&snb1->mbuf.packet_type, 
@@ -69,9 +60,6 @@ snb_alloc_bulk(snb_array_t snbs, int cnt, uint16_t len)
 	if (cnt & 0x1){
 		struct snbuf *snb = snbs[i];
 
-#if OLD_METADATA
-		*((__m128i *)&snb->_snbuf_start) = snb_template;
-#endif
 		_mm_store_si128((__m128i *)&snb->mbuf.buf_len, 
 				mbuf_template);
 		_mm_store_si128((__m128i *)&snb->mbuf.packet_type, 
@@ -81,10 +69,6 @@ snb_alloc_bulk(snb_array_t snbs, int cnt, uint16_t len)
         return cnt;
 }
 
-/* RTE_MBUF_FROM_BADDR is not defined in DPDK 2.1 */
-#ifndef RTE_MBUF_FROM_BADDR
-#define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
-#endif
 /* for packets to be processed in the fast path, all packets must:
  * 1. share the same mempool
  * 2. single segment 
@@ -97,7 +81,7 @@ static inline void snb_free_bulk(snb_array_t snbs, int cnt)
 	struct rte_mempool *_pool = snbs[0]->mbuf.pool;
 	
 	/* broadcast */
-	__m128i offset = _mm_set1_epi64x(sizeof(struct rte_mbuf));
+	__m128i offset = _mm_set1_epi64x(SNBUF_HEADROOM_OFF);
 	__m128i info_mask = _mm_set1_epi64x(0x00ffffff00000000UL);
 	__m128i info_simple = _mm_set1_epi64x(0x0001000100000000UL);
 	__m128i pool = _mm_set1_epi64x((uint64_t) _pool);
@@ -137,12 +121,12 @@ static inline void snb_free_bulk(snb_array_t snbs, int cnt)
 	}
 
 	if (i < cnt) {
-		struct rte_mbuf *mbuf = &snbs[i]->mbuf;
+		struct snbuf *snb = snbs[i];
 
-		if (unlikely(mbuf->pool != _pool || 
-				mbuf->next != NULL || 
-				rte_mbuf_refcnt_read(mbuf) != 1 ||
-				RTE_MBUF_FROM_BADDR(mbuf->buf_addr) != mbuf))
+		if (unlikely(snb->mbuf.pool != _pool || 
+				snb->mbuf.next != NULL || 
+				rte_mbuf_refcnt_read(&snb->mbuf) != 1 ||
+				snb->mbuf.buf_addr != snb->_headroom))
 		{
 			goto slow_path;
 		}

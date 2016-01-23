@@ -118,40 +118,8 @@ int enable_tcpdump(const char* fifo, struct module *m, gate_t gate);
 
 int disable_tcpdump(struct module *m, gate_t gate);
 
-static inline int dump_pcap_pkts(int fd, struct pkt_batch *batch)
-{
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	int ret = 0;
-	int packets = 0;
-	int error_out = 0;
-	for (int i = 0; i < batch->cnt && (!error_out); i++) {
-		struct snbuf* pkt = batch->pkts[i];
-		int len = pkt->mbuf.data_len;
-		struct pcap_rec_hdr *pkthdr = 
-			(struct pcap_rec_hdr*) snb_prepend(pkt, 
-				sizeof(struct pcap_rec_hdr));
-		pkthdr->ts_sec = tv.tv_sec;
-		pkthdr->ts_usec = tv.tv_usec;
-		pkthdr->orig_len = pkthdr->incl_len = len;
-		assert(len < PCAP_SNAPLEN);
-		ret = write(fd, snb_head_data(pkt), pkt->mbuf.data_len);
-		assert(pkt->mbuf.data_len < PIPE_BUF);
-		if (ret < 0) {
-			if (errno == EPIPE) {
-				printf("Stopping dump\n");
-				close(fd);
-				packets = -1;
-			}
-			error_out = 1;
-		} else {
-			assert(ret == pkt->mbuf.data_len);
-			packets++;
-		}
-		snb_adj(pkt, sizeof(struct pcap_rec_hdr));
-	}
-	return packets;
-}
+void dump_pcap_pkts(struct output_gate *gate, struct pkt_batch *batch);
+
 #else
 inline int enable_tcpdump(const char *, struct module *, gate_t) {
 	/* Cannot enable tcpdump */
@@ -189,15 +157,8 @@ static inline void run_choose_module(struct module *m, gate_t ogate,
 #endif
 
 #if TCPDUMP_GATES
-	if (gate->tcpdump) {
-		int ret = dump_pcap_pkts(gate->fifo_fd, batch);
-		/* Not only did the previous operation fail, 
-		 * but fd was closed */
-		if (ret < 0) {
-			gate->tcpdump = 0;
-			gate->fifo_fd = 0;
-		}
-	}
+	if (unlikely(gate->tcpdump))
+		dump_pcap_pkts(gate, batch);
 #endif
 
 	gate->f(gate->m, batch);
@@ -218,110 +179,46 @@ static inline void run_next_module(struct module *m, struct pkt_batch *batch)
  * NOTE:
  *   1. Order is preserved for packets with the same gate.
  *   2. No ordering guarantee for packets with different gates.
- *   3. Array ogates may be altered.
- *
- * TODO: optimize this function. currently O(n^2) in the worst case
  */
-static void run_split(struct module *m, gate_t *ogates,
-		struct pkt_batch *org)
+static void run_split(struct module *m, const gate_t *ogates,
+		struct pkt_batch *mixed_batch)
 {
-	const int total = org->cnt;
-	int i = 0;
+	int cnt = mixed_batch->cnt;
+	int num_pending = 0;
 
-	while (i < total) {
-		gate_t h = ogates[i];
+	snb_array_t p_pkt = &mixed_batch->pkts[0];
 
-		if (h != INVALID_GATE) {
-			struct pkt_batch batch;
-			int cnt = 1;
-			batch.pkts[0] = org->pkts[i++];
+	gate_t pending[MAX_PKT_BURST];
+	struct pkt_batch batches[MAX_PKT_BURST];
 
-			for (int j = i; j < total; j++) {
-				gate_t t = ogates[j];
-				int equal = (h == t);
+	struct pkt_batch *splits = ctx.splits;
 
-				batch.pkts[cnt] = org->pkts[j];
-				ogates[j] |= INVALID_GATE * equal;
-				cnt += equal;
-				i += (i == j) * equal;
-			}
+	/* phase 1: collect unique ogates into pending[] */
+	for (int i = 0; i < cnt; i++) {
+		struct pkt_batch *batch;
+		gate_t ogate;
+		
+		ogate = ogates[i];
+		batch = &splits[ogate];
 
-			batch.cnt = cnt;
-			run_choose_module(m, h, &batch);
-		} else
-			i++;
+		batch_add(batch, *(p_pkt++));
+
+		pending[num_pending] = ogate;
+		num_pending += (batch->cnt == 1);
 	}
+
+	/* phase 2: move batches to local stack, since it may be reentrant */
+	for (int i = 0; i < num_pending; i++) {
+		struct pkt_batch *batch;
+
+		batch = &splits[pending[i]];
+		batch_copy(&batches[i], batch);
+		batch_clear(batch);
+	}
+
+	/* phase 3: fire */
+	for (int i = 0; i < num_pending; i++)
+		run_choose_module(m, pending[i], &batches[i]);
 }
-
-#if 0
-#define SN_TRACE_MODULES	0
-#define SN_CPU_USAGE		1
-
-struct module {
-	char name[MODULE_NAME_LEN];
-
-	const struct mclass *mclass;
-
-	int num_next_modules;
-	struct module *next_modules[MAX_NEXT_MODULES];
-
-	struct rte_timer *timers[MAX_WORKERS];
-
-	void *priv_shared; 	/* Note: this is shared across SoftNIC workers */
-	void *priv_worker[MAX_WORKERS];
-};
-
-#define set_priv_worker(mod, data) \
-	do { mod->priv_worker[ctx.wid] = data; } while (0)
-
-#define get_priv_worker(mod, type) \
-	((type)mod->priv_worker[ctx.wid])
-/* for single-output modules */
-void set_next_module(struct module *prev, struct module *next);
-
-/* for multi-output modules */
-void add_next_module(struct module *prev, struct module *next, void *arg);
-
-static inline int do_poll(struct module *mod)
-{
-	int ret;
-
-#if SN_TRACE_MODULES
-	_trace_start(mod, "POLL");
-#endif
-
-	ret = mod->ops->scheduled(mod);
-
-#if SN_TRACE_MODULES
-	_trace_end(ret != 0);
-#endif
-
-	return ret;
-}
-
-void dpdk_timer_cb(struct rte_timer *timer, void *arg);
-
-static inline void _reset_timer(struct module *mod, uint64_t us,
-				enum rte_timer_type type)
-{
-	rte_timer_reset_sync(mod->timers[current_wid],
-			us * (rte_get_timer_hz() / 1000000), type,
-			wid_to_lcore_map[current_wid], dpdk_timer_cb, mod);
-}
-
-/* It triggers a call to ops->timer() on the current core,
- * us microseconds later (one shot). */
-static inline void reset_timer_single(struct module *mod, uint64_t us)
-{
-	_reset_timer(mod, us, SINGLE);
-}
-
-/* It triggers a call to ops->timer() on the current core,
- * for every us microseconds. */
-static inline void reset_timer_periodic(struct module *mod, uint64_t us)
-{
-	_reset_timer(mod, us, PERIODICAL);
-}
-#endif
 
 #endif
