@@ -40,12 +40,14 @@ static void init_template(void)
 static void load_mempool(void)
 {
 	/* Try pframe pool on node 0 first */
-	mempool = rte_mempool_lookup("pframe0");
-	if (mempool)
+	mempool = rte_mempool_lookup("pframe0_512k");
+	if (mempool) {
+		printf("Using mempool on node 0");
 		return;
+	}
 
 	/* second chance */
-	mempool = rte_mempool_lookup("pframe1");
+	mempool = rte_mempool_lookup("pframe1_512k");
 	if (mempool)
 		return;
 

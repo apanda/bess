@@ -32,9 +32,9 @@ CC = gcc
 CFLAGS = -std=gnu99 -Wall -Werror -march=native -Wno-unused-function \
 	 -Wno-unused-but-set-variable -I../sndrv -I../ -fPIC -g3 -O3 
 
-all: sample sink source fastforward sourcesink alloc_test iso_test 
+all: sample sink source fastforward fastforward_ring sourcesink alloc_test iso_test 
 clean:
-	rm -f *.o *.a *.so sample sink source fastforward sourcesink iso_test alloc_test
+	rm -f *.o *.a *.so sample sink source fastforward fastforward_ring sourcesink iso_test alloc_test
 
 sample.o: sample.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(CFLAGS) -I$(DPDK_INC_DIR) 
@@ -64,6 +64,12 @@ fastforward.o: fastforward.c
 	$(CC) $(CFLAGS) -c $< -o $@ -I$(DPDK_INC_DIR)
 
 fastforward: fastforward.o 
+	$(CC) $< -o $@ -L. -Wl,--whole-archive $(SN_LIBS) -Wl,--no-whole-archive $(LIBS)
+
+fastforward_ring.o: fastforward_ring.c 
+	$(CC) $(CFLAGS) -c $< -o $@ -I$(DPDK_INC_DIR)
+
+fastforward_ring: fastforward_ring.o 
 	$(CC) $< -o $@ -L. -Wl,--whole-archive $(SN_LIBS) -Wl,--no-whole-archive $(LIBS)
 
 alloc_test.o: alloc_test.c 
