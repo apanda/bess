@@ -76,8 +76,8 @@ again:
 		exit(EXIT_FAILURE);
 	}
 
-	log_info("%d packet buffers allocated on socket %d\n", 
-			current_try - 1, sid);
+	log_info("%d packet buffers allocated on socket %d with name %s\n", 
+			current_try - 1, sid, name);
 
 	if (global_opts.debug_mode)
 		rte_mempool_dump(stdout, pframe_pool[sid]);
