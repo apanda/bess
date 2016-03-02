@@ -93,6 +93,12 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 	struct rte_ring *ring = NULL;
 	int ret;
 	struct rte_eth_conf null_conf;
+	int numa_node = 0;
+
+	if (snobj_eval_exists(arg, "node")) {
+		numa_node = snobj_eval_int(arg, "node");
+	}
+
 	memset(&null_conf, 0, sizeof(struct rte_eth_conf));
 
 	bytes_per_ring = rte_ring_get_memsize(SLOTS_PER_LLRING);
@@ -182,7 +188,7 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 	priv->port = rte_eth_from_rings(p->name, 
 			bar->inc_qs, bar->num_inc_q,
 			bar->out_qs, bar->num_out_q,
-			0);
+			numa_node);
 	if (priv->port == -1) {
 		return snobj_err(EINVAL, "Could not create eth ring");
 	}
@@ -192,7 +198,7 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 	}
 
 	for (i = 0; i < num_inc_q; i++) {
-		int sid = 0;
+		int sid = numa_node;
 
 		ret = rte_eth_rx_queue_setup(priv->port, i, 
 					     32,
