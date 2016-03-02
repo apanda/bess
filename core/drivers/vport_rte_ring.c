@@ -223,6 +223,7 @@ static void vport_deinit_port(struct port *p)
 	char file_name[PORT_NAME_LEN + 256];
 
 	int num_out_q = p->num_queues[PACKET_DIR_OUT];
+	rte_eth_dev_stop(priv->port);
 
 	for (int i = 0; i <num_out_q; i++) {
 		snprintf(file_name, PORT_NAME_LEN + 256, "%s/%s/%s.rx%d",
@@ -264,6 +265,7 @@ static const struct driver ring_port = {
 	.init_port 	= vport_init_port,
 	.recv_pkts 	= vport_recv_pkts,
 	.send_pkts 	= vport_send_pkts,
+	.deinit_port	= vport_deinit_port,
 };
 
 ADD_DRIVER(ring_port)
