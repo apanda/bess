@@ -10,6 +10,7 @@
 #include <rte_ring.h>
 #include <rte_errno.h>
 #include <rte_eth_ring.h>
+#include <rte_ethdev.h>
 
 #include "../driver.h"
 #include "../port.h"
@@ -90,6 +91,9 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 	FILE* fp;
 	size_t bar_address;
 	struct rte_ring *ring = NULL;
+	int ret;
+	struct rte_eth_conf null_conf;
+	memset(&null_conf, 0, sizeof(struct rte_eth_conf));
 
 	bytes_per_ring = rte_ring_get_memsize(SLOTS_PER_LLRING);
 	total_bytes =	sizeof(struct rte_ring_bar) +
@@ -113,7 +117,7 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 		priv->inc_regs[i] = bar->inc_regs[i] =
 			(struct vport_inc_regs*)ptr;
 		ptr += sizeof(struct vport_inc_regs);
-		int ret = rte_ring_init((struct rte_ring*)ptr, 
+		ret = rte_ring_init((struct rte_ring*)ptr, 
 				RTE_RING_NAME, SLOTS_PER_LLRING, 
 				SINGLE_P | SINGLE_C);
 		if (ret != 0) {
@@ -134,7 +138,7 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 			(struct vport_out_regs*)ptr;
 		ptr += sizeof(struct vport_out_regs);
 
-		int ret = rte_ring_init((struct rte_ring*)ptr, 
+		ret = rte_ring_init((struct rte_ring*)ptr, 
 				RTE_RING_NAME, SLOTS_PER_LLRING, 
 				SINGLE_P | SINGLE_C);
 		if (ret != 0) {
@@ -176,12 +180,40 @@ static struct snobj *vport_init_port(struct port *p, struct snobj *arg)
 	fwrite(&bar_address, 8, 1, fp);
 	fclose(fp);
 	priv->port = rte_eth_from_rings(p->name, 
-			bar->out_qs, bar->num_out_q,
 			bar->inc_qs, bar->num_inc_q,
+			bar->out_qs, bar->num_out_q,
 			0);
 	if (priv->port == -1) {
 		return snobj_err(EINVAL, "Could not create eth ring");
 	}
+	if(rte_eth_dev_configure(priv->port, 
+		num_inc_q, num_out_q, &null_conf) < 0) {
+		return snobj_err(EINVAL, "Could not configure port");
+	}
+
+	for (i = 0; i < num_inc_q; i++) {
+		int sid = 0;
+
+		ret = rte_eth_rx_queue_setup(priv->port, i, 
+					     32,
+					     sid, NULL,
+					     get_pframe_pool_socket(sid));
+		if (ret != 0) 
+			return snobj_err(-ret, 
+					"rte_eth_rx_queue_setup() failed");
+	}
+
+	for (i = 0; i < num_out_q; i++) {
+		int sid = 0;		/* XXX */
+
+		ret = rte_eth_tx_queue_setup(priv->port, i,
+					     32,
+					     sid, NULL);
+		if (ret != 0) 
+			return snobj_err(-ret,
+					"rte_eth_tx_queue_setup() failed");
+	}
+	rte_eth_dev_start(priv->port);
 	return NULL;
 }
 
@@ -211,32 +243,18 @@ static int
 vport_send_pkts(struct port *p, queue_t qid, snb_array_t pkts, int cnt)
 {
 	struct vport_priv *priv = get_port_priv(p);
-	struct rte_ring* q = priv->out_qs[qid];
-	int ret;
 	
-	ret = rte_ring_enqueue_bulk(q, (void**)pkts, cnt);
-	if (ret == -LLRING_ERR_NOBUF)
-		return 0;
-
-	if (__sync_bool_compare_and_swap(&priv->out_regs[qid]->irq_enabled,
-				1, 0))
-	{
-		int ret;
-		ret = write(priv->out_irq_fd[qid], (void *)&(char){'F'}, 1);
-	}
-
-	return cnt;
+	int sent = rte_eth_tx_burst(priv->port, qid, 
+			(struct rte_mbuf **)pkts, cnt);
+	return sent;
 }
 
 static int
 vport_recv_pkts(struct port *p, queue_t qid, snb_array_t pkts, int cnt)
 {
 	struct vport_priv *priv = get_port_priv(p);
-	struct rte_ring* q = priv->inc_qs[qid];
-	int ret;
-	
-	ret = rte_ring_dequeue_burst(q, (void **)pkts, cnt);
-	return ret;
+	return rte_eth_rx_burst(priv->port, qid, 
+			(struct rte_mbuf **)pkts, cnt);
 }
 
 static const struct driver ring_port = {
