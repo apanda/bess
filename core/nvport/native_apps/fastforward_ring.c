@@ -56,7 +56,7 @@ static int run_fastforward(void)
 
 	struct snbuf *pkts[batch_size];
 	int received;
-	int sent;
+	int sent = 0;
 
 	int i;
 
@@ -84,7 +84,11 @@ static int run_fastforward(void)
 			end = rte_rdtsc();
 	}
 
-	sent = rte_eth_tx_burst(out_port, 0, (struct rte_mbuf**)pkts, received);
+	
+	while (sent < received) {
+		sent += rte_eth_tx_burst(out_port, 0, 
+				(struct rte_mbuf**)&pkts[sent], received - sent);
+	}
 
 	stats.tx_pkts += sent;
 	stats.tx_batch++;
@@ -92,6 +96,7 @@ static int run_fastforward(void)
 	/* free unsent packets */
 	for (i = sent; i < received; i++) {
 		/* Slow since packets are freed on this (remote) core */
+		assert(0);
 		snb_free(pkts[i]);
 		pkts[i] = NULL;
 	}
