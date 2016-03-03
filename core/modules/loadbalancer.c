@@ -8,7 +8,8 @@ const size_t MAX_GATES = 1024;
 struct lb_priv {
 	struct module *dht;
 	gate_t gates;
-	gate_t translate_gates[1024];
+	gate_t forward_translate_gates[1024];
+	gate_t reverse_translate_gates[1024];
 };
 
 static struct snobj *lb_init(struct module *m, struct snobj *arg) {
@@ -36,18 +37,32 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 					"Cannot support more than %d gates",
 					(int)MAX_GATES);
 		}
-		struct snobj *gate_mapping = snobj_map_get(arg, "gate_map");
+		struct snobj *gate_mapping = snobj_map_get(arg, "fwd_gate_map");
 		if (gate_mapping == NULL || 
 		    snobj_type(gate_mapping) != TYPE_LIST ||
 		    snobj_size(gate_mapping) != priv->gates) {
 		    	return snobj_err(EINVAL,
 		    			"Must supply a mapping from "
-		    			"load balancer gate to hashmap gate");
+		    			"load balancer gate to DHT fwd gate");
 		}
 		for (int i = 0; i < snobj_size(gate_mapping); i++) {
-			priv->translate_gates[i] = 
+			priv->forward_translate_gates[i] = 
 				snobj_int_get(snobj_list_get(gate_mapping, i));
 		}
+
+		gate_mapping = snobj_map_get(arg, "rev_gate_map");
+		if (gate_mapping == NULL || 
+		    snobj_type(gate_mapping) != TYPE_LIST ||
+		    snobj_size(gate_mapping) != priv->gates) {
+		    	return snobj_err(EINVAL,
+		    			"Must supply a mapping from "
+		    			"load balancer gate to DHT rev gate");
+		}
+		for (int i = 0; i < snobj_size(gate_mapping); i++) {
+			priv->reverse_translate_gates[i] = 
+				snobj_int_get(snobj_list_get(gate_mapping, i));
+		}
+
 	} else {
 		priv->gates = 0;
 	}
@@ -61,33 +76,24 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 	struct lb_priv *priv = get_priv(m);
 	// FIXME: Removing is hard just add or change mapping for now.
 	if (snobj_map_get(q, "add")) {
-		int mapped_gate = snobj_eval_int(q, "add.gate_map");
-		priv->translate_gates[priv->gates] = mapped_gate;
+		int fwd_gate = snobj_eval_int(q, "add.fwd_gate_map");
+		priv->forward_translate_gates[priv->gates] = fwd_gate;
+		int rev_gate = snobj_eval_int(q, "add.rev_gate_map");
+		priv->reverse_translate_gates[priv->gates] = rev_gate;
 		priv->gates += 1;
-	} else if (snobj_map_get(q, "add_bulk")) {
-		int to_add = snobj_eval_int(q, "add_bulk.count");
-		struct snobj *gate_map = snobj_eval(q, "add_bulk.gate_map");
-		if (gate_map == NULL ||
-		    snobj_type(gate_map) != TYPE_LIST ||
-		    snobj_size(gate_map) != to_add) {
-			return snobj_err(EINVAL,
-					"Must supply an appropriate gate map");
-		}
-		for (int i = 0; i < to_add; i++) {
-			priv->translate_gates[priv->gates] = 
-				snobj_int_get(snobj_list_get(gate_map, i));
-			priv->gates++;
-		}
 	} else if (snobj_map_get(q, "change_mapping")) {
 		gate_t to_change = (gate_t)snobj_eval_int(q, 
 				"change_mapping.gate");
-		gate_t new_val = (gate_t)snobj_eval_int(q,
-				"change_mapping.map_to");
+		gate_t fwd_new_val = (gate_t)snobj_eval_int(q,
+				"change_mapping.fwd_map");
+		gate_t rev_new_val = (gate_t)snobj_eval_int(q,
+				"change_mapping.rev_map");
 		if (to_change >= priv->gates) {
 			return snobj_err(EINVAL,
 					"Gate %d is not active", to_change);
 		}
-		priv->translate_gates[to_change] = new_val;
+		priv->forward_translate_gates[to_change] = fwd_new_val;
+		priv->reverse_translate_gates[to_change] = rev_new_val;
 	}
 	return NULL;
 }
@@ -119,7 +125,11 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 			uint32_t hash = ftb_hash(&flow);
 			gate = hash % gates;
 			// FIXME: Error handling/trigger GC or something.
-			dht_add_flow(priv->dht, &flow, gate);
+			dht_add_flow(priv->dht, &flow, 
+					priv->forward_translate_gates[gate]);
+			reverse_flow(&flow);
+			dht_add_flow(priv->dht, &flow,
+					priv->reverse_translate_gates[gate]);
 		}
 		ogates[i] = gate;
 	}
@@ -137,3 +147,5 @@ static const struct mclass e2_lb = {
 	.get_desc        = lb_get_desc,
 	.process_batch   = lb_process_batch,
 };
+
+ADD_MCLASS(e2_lb)

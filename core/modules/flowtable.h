@@ -460,4 +460,14 @@ extract_flow(struct snbuf *snb, struct flow *flow)
 	return 0;
 }
 
+static void reverse_flow(struct flow *flow) {
+	// Reverse flow
+	uint32_t tmp_addr = flow->src_addr;
+	flow->src_addr = flow->dst_addr;
+	flow->dst_addr = tmp_addr;
+	uint16_t tmp_port = flow->src_port;
+	flow->src_port = flow->dst_port;
+	flow->dst_port = tmp_port;
+}
+
 #endif
