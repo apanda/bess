@@ -222,6 +222,12 @@ static struct snobj *dht_get_desc(const struct module *m)
 	return NULL;
 }
 
+int dht_check_flow(struct module* m, struct flow *flow) {
+	gate_t ogate;
+	struct dht_priv *priv = get_priv(m);
+	return ftb_find(&priv->flow_table, flow, &ogate);
+}
+
 __attribute__((optimize("unroll-loops")))
 static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 {

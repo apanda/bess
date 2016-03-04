@@ -3,7 +3,7 @@
 #include "flowtable.h"
 
 /* Number of pipelet instances we can balance between, for now */
-const size_t MAX_GATES = 1024;
+static const size_t MAX_GATES = 1024;
 
 struct lb_priv {
 	struct module *dht;
