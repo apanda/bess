@@ -116,6 +116,13 @@ class SoftNIC(object):
         else:
             return self._request({'to': 'module', 'name': name, 'cmd': cmd})
 
+    def _request_port(self, name, cmd, arg = None):
+        if arg is not None:
+            return self._request({'to': 'port', 'name': name, 'cmd' : cmd,
+                'arg': arg})
+        else:
+            return self._request({'to': 'port', 'name': name, 'cmd': cmd})
+
     def kill(self):
         try:
             return self._request_softnic('kill_bess')
@@ -187,6 +194,9 @@ class SoftNIC(object):
 
     def query_module(self, name, arg):
         return self._request_module(name, 'query', arg)
+
+    def query_port(self, name, arg):
+        return self._request_port(name, 'query', arg)
 
     def enable_tcpdump(self, fifo, m, gate = 0):
         args = {'name': m, 'gate': gate, 'fifo': fifo}

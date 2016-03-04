@@ -1,6 +1,7 @@
 #include <rte_config.h>
 #include <rte_ethdev.h>
 #include <rte_errno.h>
+#include <stdlib.h>
 
 #include "../port.h"
 
@@ -350,6 +351,17 @@ static int pmd_send_pkts(struct port *p, queue_t qid, snb_array_t pkts, int cnt)
 	return sent;
 }
 
+static struct snobj *pmd_query(struct port *p, struct snobj *q)
+{
+	struct pmd_priv *priv = get_port_priv(p);
+	struct ether_addr addr;
+	rte_eth_macaddr_get(priv->dpdk_port_id, &addr);
+	return snobj_str_fmt("%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+			addr.addr_bytes[0], addr.addr_bytes[1],
+			addr.addr_bytes[2], addr.addr_bytes[3],
+			addr.addr_bytes[4], addr.addr_bytes[5]);
+}
+
 static const struct driver pmd = {
 	.name 		= "PMD",
 	.priv_size	= sizeof(struct pmd_priv),
@@ -363,6 +375,7 @@ static const struct driver pmd = {
 	.collect_stats	= pmd_collect_stats,
 	.recv_pkts 	= pmd_recv_pkts,
 	.send_pkts 	= pmd_send_pkts,
+	.query          = pmd_query, 
 };
 
 ADD_DRIVER(pmd)

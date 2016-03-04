@@ -466,6 +466,46 @@ static struct snobj *handle_destroy_port(struct snobj *q)
 	return NULL;
 }
 
+static struct snobj *handle_snobj_port(struct snobj *q)
+{
+	const char *port_name;
+	const char *cmd;
+	struct port *p;
+	port_name = snobj_eval_str(q, "name");
+
+	if (!port_name)
+		return snobj_err(EINVAL, "Missing port name");
+	p = find_port(port_name);
+	if (!p)
+		return snobj_err(ENOENT, "No port `%s' found", port_name);
+
+	cmd = snobj_eval_str(q, "cmd");
+
+	if (strcmp(cmd, "query") == 0) {
+		struct snobj *arg;
+
+		if (!p->driver->query)
+			return snobj_err(ENOTSUP,
+					"Port '%s' does not support queries",
+					port_name);
+
+		arg = snobj_eval(q, "arg");
+		if (!arg) {
+			struct snobj *ret;
+
+			arg = snobj_nil();
+			ret = p->driver->query(p, arg);
+			snobj_free(arg);
+			return ret;
+		}
+
+		return p->driver->query(p, arg);
+	} else
+		return snobj_err(ENOTSUP, "Not supported command '%s'", cmd);
+
+
+}
+
 static struct snobj *handle_get_port_stats(struct snobj *q)
 {
 	const char *port_name;
@@ -1005,6 +1045,8 @@ struct snobj *handle_request(struct client *c, struct snobj *q)
 		r = handle_snobj_softnic(q);
 	} else if (strcmp(s, "module") == 0) {
 		r = handle_snobj_module(q);
+	} else if (strcmp(s, "port") == 0 ) {
+		r = handle_snobj_port(q);
 	} else
 		r = snobj_err(EINVAL, "Unknown destination in 'to': %s", s);
 
