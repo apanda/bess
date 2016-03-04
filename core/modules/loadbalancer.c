@@ -124,10 +124,22 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 			/* Consistent hashing to make sure no race. */
 			uint32_t hash = ftb_hash(&flow);
 			gate = hash % gates;
+			log_info("Assigning flow %u %u %d %d"
+				" to gate %d adding for %d\n", 
+					flow.src_addr, flow.dst_addr,
+					flow.src_port, flow.dst_port,
+					gate, 
+					priv->forward_translate_gates[gate]);
 			// FIXME: Error handling/trigger GC or something.
 			dht_add_flow(priv->dht, &flow, 
 					priv->forward_translate_gates[gate]);
 			reverse_flow(&flow);
+			log_info("Assigning flow %u %u %u %u"
+				" to gate %d adding for %d\n", 
+					flow.src_addr, flow.dst_addr,
+					flow.src_port, flow.dst_port,
+					gate, 
+					priv->reverse_translate_gates[gate]);
 			dht_add_flow(priv->dht, &flow,
 					priv->reverse_translate_gates[gate]);
 		}

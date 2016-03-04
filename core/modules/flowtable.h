@@ -456,7 +456,7 @@ extract_flow(struct snbuf *snb, struct flow *flow)
 	flow->src_port = udp->src_port;
 	flow->dst_port = udp->dst_port;
 	flow->protocol = ip->next_proto_id;
-	
+	memset(flow->dummy, 0, sizeof(flow->dummy));
 	return 0;
 }
 

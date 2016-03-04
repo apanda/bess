@@ -55,6 +55,7 @@ static void dht_deinit(struct module *m)
 int dht_add_flow(struct module* m, struct flow *flow, gate_t gate)
 {
 	struct dht_priv *priv = get_priv(m);
+	log_info("Adding entry for gate %d\n", gate);
 	return ftb_add_entry(&priv->flow_table, flow, gate);
 }
 
@@ -239,10 +240,16 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 		if (extract_flow(snb, &flow) < 0) {
 			/* Forward to default gate */
 			ogates[i] = priv->default_gate;
-		}else {
+			log_info("DHT not a flow\n");
+		} else {
 			r = ftb_find(&priv->flow_table,
 				     &flow,
 				     &ogates[i]);
+			if (r != 0) {
+				log_info("DHT Miss %u %u %d %d\n",
+					flow.src_addr, flow.dst_addr,
+					flow.src_port, flow.dst_port);
+			}
 		}
 	}
 
