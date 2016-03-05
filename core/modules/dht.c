@@ -7,6 +7,7 @@ struct dht_priv {
 	int init;
 	struct flow_table flow_table;
 	gate_t default_gate;
+	gate_t sink_gate;
 };
 
 static struct snobj *dht_init(struct module *m, struct snobj *arg)
@@ -16,6 +17,7 @@ static struct snobj *dht_init(struct module *m, struct snobj *arg)
 	int size = snobj_eval_int(arg, "size");
 	int bucket = snobj_eval_int(arg, "bucket");
 	int default_gate = snobj_eval_int(arg, "default_gate");
+	int sink_gate = snobj_eval_int(arg, "sink_gate");
 
 	assert(priv != NULL);
 
@@ -27,6 +29,10 @@ static struct snobj *dht_init(struct module *m, struct snobj *arg)
 		size = DEFAULT_TABLE_SIZE;
 	if (bucket == 0)
 		bucket = MAX_BUCKET_SIZE;
+
+	if (sink_gate == default_gate)
+		log_warn("DHT sink_gate and default_gate are the same"
+			 " this will result in not dropping non-flows\n");
 
 	ret = ftb_init(&priv->flow_table, size, bucket);
 
@@ -245,8 +251,9 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 		
 		if (extract_flow(snb, &flow) < 0) {
 			/* Forward to default gate */
-			ogates[i] = priv->default_gate;
-			log_info("DHT not a flow\n");
+			ogates[i] = priv->sink_gate;
+			// Too chatty, so getting rid of this
+			/*log_info("DHT not a flow\n");*/
 		} else {
 			r = ftb_find(&priv->flow_table,
 				     &flow,
