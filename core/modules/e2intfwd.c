@@ -27,28 +27,28 @@ static int parse_mac_addr(const char *str, uint8_t *addr)
 	return 0;
 }
 
-static struct snobj *e2int_init(struct module *m, struct snobj *arg) {
+static void e2int_deinit(struct module *m) {
+}
+
+static struct snobj *e2int_query(struct module *m, struct snobj *q) {
 	struct e2intfwd_priv *priv = get_priv(m);
-	if (arg == NULL || snobj_eval(arg, "dst") == NULL ||
-			snobj_eval(arg, "src") == NULL) {
+	if (q == NULL || snobj_eval(q, "dst") == NULL ||
+			snobj_eval(q, "src") == NULL) {
 		return snobj_err(EINVAL, "Need source and destination MAC");
 	}
-	int r = parse_mac_addr(snobj_eval_str(arg, "dst"), priv->mac_addr);
+	int r = parse_mac_addr(snobj_eval_str(q, "dst"), priv->mac_addr);
 	if (r != 0) {
 		return snobj_err(r, "Error parsing destination MAC address");
 	}
-	r = parse_mac_addr(snobj_eval_str(arg, "src"), &priv->mac_addr[6]);
+	r = parse_mac_addr(snobj_eval_str(q, "src"), &priv->mac_addr[6]);
 	if (r != 0) {
 		return snobj_err(r, "Error parsing source MAC address");
 	}
 	return NULL;
 }
 
-static void e2int_deinit(struct module *m) {
-}
-
-static struct snobj *e2int_query(struct module *m, struct snobj *q) {
-	return NULL;
+static struct snobj *e2int_init(struct module *m, struct snobj *arg) {
+	return e2int_query(m, arg);
 }
 
 static struct snobj *e2int_get_desc(const struct module *m) {
