@@ -73,6 +73,15 @@ static struct snobj *l2rw_init(struct module *m, struct snobj *arg) {
 }
 
 static struct snobj *l2rw_get_desc(const struct module *m) {
+	const struct l2rw_priv *priv = get_priv_const(m);
+	return snobj_str_fmt("%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx/"
+			"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+			priv->mac_addr[0], priv->mac_addr[1],
+			priv->mac_addr[2], priv->mac_addr[3],
+			priv->mac_addr[4], priv->mac_addr[5],
+			priv->mac_addr[6], priv->mac_addr[7],
+			priv->mac_addr[8], priv->mac_addr[9],
+			priv->mac_addr[10], priv->mac_addr[11]);
 	return NULL;
 }
 
