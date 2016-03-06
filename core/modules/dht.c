@@ -24,6 +24,8 @@ static struct snobj *dht_init(struct module *m, struct snobj *arg)
 	priv->init = 0;
 
 	priv->default_gate = default_gate;
+	
+	priv->sink_gate = sink_gate;
 
 	if (size == 0)
 		size = DEFAULT_TABLE_SIZE;

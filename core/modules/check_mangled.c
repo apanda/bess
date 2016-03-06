@@ -56,11 +56,12 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 				ogates[i] = 0;
 			} else {
 				ogates[i] = 1;
-				log_warn("Mangled packet");
 			}
+		} else {
+			/* This really should not happen given the setup */
+			log_warn("Could not extract flow");
+			ogates[i] = 0;
 		}
-		/* If we cannot extract flow, then no one is going to really
-		 * look up the reverse traffic, so is fine. */
 	}
 
 	run_split(m, ogates, batch);
