@@ -3,13 +3,14 @@
 #include "flowtable.h"
 
 /* Number of pipelet instances we can balance between, for now */
-static const size_t MAX_GATES = 1024;
+#define MAX_GATES 1024
 
 struct lb_priv {
 	struct module *dht;
 	gate_t gates;
-	gate_t forward_translate_gates[1024];
-	gate_t reverse_translate_gates[1024];
+	gate_t forward_translate_gates[MAX_GATES];
+	gate_t reverse_translate_gates[MAX_GATES];
+	uint64_t bytes_tx[MAX_OUTPUT_GATES];
 };
 
 static struct snobj *lb_init(struct module *m, struct snobj *arg) {
@@ -144,6 +145,7 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 					priv->reverse_translate_gates[gate]);
 		}
 		ogates[i] = gate;
+		priv->bytes_tx[ogates[i]] += snb_total_len(snb);
 	}
 
 	run_split(m, ogates, batch);

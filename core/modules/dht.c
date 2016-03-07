@@ -8,6 +8,8 @@ struct dht_priv {
 	struct flow_table flow_table;
 	gate_t default_gate;
 	gate_t sink_gate;
+	// Measure how many bytes are sent to each gate
+	uint64_t bytes_tx[MAX_OUTPUT_GATES];
 };
 
 static struct snobj *dht_init(struct module *m, struct snobj *arg)
@@ -254,18 +256,17 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 		if (extract_flow(snb, &flow) < 0) {
 			/* Forward to default gate */
 			ogates[i] = priv->sink_gate;
-			// Too chatty, so getting rid of this
-			/*log_info("DHT not a flow\n");*/
 		} else {
 			r = ftb_find(&priv->flow_table,
 				     &flow,
 				     &ogates[i]);
-			if (r != 0) {
-				log_info("DHT Miss %u %u %d %d\n",
-					flow.src_addr, flow.dst_addr,
-					flow.src_port, flow.dst_port);
-			}
+			/*if (r != 0) {*/
+				/*log_info("DHT Miss %u %u %d %d\n",*/
+					/*flow.src_addr, flow.dst_addr,*/
+					/*flow.src_port, flow.dst_port);*/
+			/*}*/
 		}
+		priv->bytes_tx[ogates[i]] += snb_total_len(snb);
 	}
 
 	run_split(m, ogates, batch);
