@@ -2,6 +2,7 @@
 
 #include "../utils/simd.h"
 #include "flowtable.h"
+#include "../time.h"
 
 struct dht_priv {
 	int init;
@@ -199,6 +200,27 @@ static struct snobj *dht_query(struct module *m, struct snobj *q)
 	struct snobj *lookup = snobj_eval(q, "lookup");
 	struct snobj *del = snobj_eval(q, "del");
 	struct snobj *def_gate = snobj_eval(q, "default");
+	struct snobj *stat_gates = snobj_map_get(q, "get_tx_stats");
+
+	if (stat_gates) {
+		struct snobj *stats = snobj_list();
+		int idx = 0;
+		if (snobj_type(stat_gates) != TYPE_LIST) {
+			return snobj_err(EINVAL, "Must supply a list of gates");
+		}
+		for (int i = 0; i < stat_gates->size; i++) {
+			gate_t gate = snobj_int_get(
+					snobj_list_get(stat_gates, i));
+			struct snobj *stat = snobj_map();
+			snobj_map_set(stat, "gate", snobj_int(gate));
+			snobj_map_set(stat, "bytes",
+					snobj_int(priv->bytes_tx[gate]));
+			snobj_map_set(stat, "timestamp", 
+					snobj_double(get_epoch_time()));
+			idx = snobj_list_add(stats, stat);
+		}
+		return stats;
+	}
 
 	if (add) {
 		ret = handle_add(priv, add);
@@ -243,6 +265,7 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 {
 	gate_t ogates[MAX_PKT_BURST];
 	int r, i;
+	const int pkt_overhead = 24;
 
 	struct dht_priv *priv = get_priv(m);
 
@@ -260,13 +283,9 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 			r = ftb_find(&priv->flow_table,
 				     &flow,
 				     &ogates[i]);
-			/*if (r != 0) {*/
-				/*log_info("DHT Miss %u %u %d %d\n",*/
-					/*flow.src_addr, flow.dst_addr,*/
-					/*flow.src_port, flow.dst_port);*/
-			/*}*/
 		}
-		priv->bytes_tx[ogates[i]] += snb_total_len(snb);
+		priv->bytes_tx[ogates[i]] += 
+			(snb_total_len(snb) + pkt_overhead);
 	}
 
 	run_split(m, ogates, batch);

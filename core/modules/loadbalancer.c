@@ -1,6 +1,7 @@
 #include "../module.h"
 #include "../utils/simd.h"
 #include "flowtable.h"
+#include "../time.h"
 
 /* Number of pipelet instances we can balance between, for now */
 #define MAX_GATES 1024
@@ -95,6 +96,24 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 		}
 		priv->forward_translate_gates[to_change] = fwd_new_val;
 		priv->reverse_translate_gates[to_change] = rev_new_val;
+	} else if (snobj_map_get(q, "get_tx_stats")) {
+		struct snobj *gates = snobj_map_get(q, "get_tx_stats");
+		struct snobj *stats = snobj_list();
+		if (snobj_type(gates) != TYPE_LIST) {
+			return snobj_err(EINVAL, "Must supply a list of gates");
+		}
+		for (int i = 0; i < gates->size; i++) {
+			gate_t gate = snobj_int_get(
+					snobj_list_get(gates, i));
+			struct snobj *stat = snobj_map();
+			snobj_map_set(stat, "gate", snobj_int(gate));
+			snobj_map_set(stat, "bytes",
+					snobj_int(priv->bytes_tx[gate]));
+			snobj_map_set(stat, "timestamp", 
+					snobj_double(get_epoch_time()));
+			snobj_list_add(stats, stat);
+		}
+		return stats;
 	}
 	return NULL;
 }
@@ -111,6 +130,7 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 	gate_t ogates[MAX_PKT_BURST];
 	int i;
 	gate_t gates = priv->gates;
+	const int pkt_overhead = 24;
 	if (gates == 0) {
 		/* Just act like a sink */
 		snb_free_bulk(batch->pkts, batch->cnt);
@@ -145,7 +165,10 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 					priv->reverse_translate_gates[gate]);
 		}
 		ogates[i] = gate;
-		priv->bytes_tx[ogates[i]] += snb_total_len(snb);
+		/* Add ethernet overhead here since we only report bytes, making
+		 * it hard to add this overhead in other places. */
+		priv->bytes_tx[ogates[i]] += 
+			(snb_total_len(snb) + pkt_overhead);
 	}
 
 	run_split(m, ogates, batch);
