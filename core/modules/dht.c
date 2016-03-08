@@ -68,7 +68,7 @@ static void dht_deinit(struct module *m)
 int dht_add_flow(struct module* m, struct flow *flow, gate_t gate)
 {
 	struct dht_priv *priv = get_priv(m);
-	log_info("Adding entry for gate %d\n", gate);
+	/*log_info("Adding entry for gate %d\n", gate);*/
 	return ftb_add_entry(&priv->flow_table, flow, gate);
 }
 

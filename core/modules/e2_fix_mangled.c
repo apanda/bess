@@ -102,6 +102,8 @@ static struct snobj *fix_mangled_get_desc(const struct module *m) {
 	return NULL;
 }
 
+int dht_check_flow(struct module* m, struct flow *flow);
+
 int dht_add_flow(struct module* m, struct flow *flow, gate_t gate);
 
 static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch) {
@@ -135,9 +137,12 @@ static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch)
 					found = 1;
 				}
 			}
-			if (!found) {
+			if (!found && dht_check_flow(priv->dht, &flow) != 0) {
+				char s_str[ETHER_ADDR_FMT_SIZE];
+				ether_format_addr(s_str, ETHER_ADDR_FMT_SIZE,
+						&src);
 				log_warn("Could not find gate for mangled"
-						" flow\n");
+						" flow %s\n", s_str);
 			}
 		}	
 	}
