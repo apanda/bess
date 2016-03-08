@@ -137,7 +137,13 @@ static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch)
 					found = 1;
 				}
 			}
-			if (!found && dht_check_flow(priv->dht, &flow) != 0) {
+			/* If we cannot find a gate, it is possible this is
+			 * actually ours, so just check that */
+			reverse_flow(&flow);
+			if (dht_check_flow(priv->dht, &flow) == 0) {
+				found = 1;
+			}
+			if (!found) {
 				char s_str[ETHER_ADDR_FMT_SIZE];
 				ether_format_addr(s_str, ETHER_ADDR_FMT_SIZE,
 						&src);
