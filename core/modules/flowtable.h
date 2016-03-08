@@ -13,7 +13,7 @@
 #include <rte_udp.h>
 
 #define MAX_TABLE_SIZE (1048576 * 64)
-#define DEFAULT_TABLE_SIZE (1048576)
+#define DEFAULT_TABLE_SIZE (1048576 * 2)
 #define MAX_BUCKET_SIZE (4)
 
 #define RESERVED_OCCUPIED_BIT (0x1ul)
