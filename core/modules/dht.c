@@ -3,6 +3,8 @@
 #include "../utils/simd.h"
 #include "flowtable.h"
 #include "../time.h"
+#include <rte_ether.h>
+#include <rte_ip.h>
 
 struct dht_priv {
 	int init;
@@ -283,6 +285,17 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 			r = ftb_find(&priv->flow_table,
 				     &flow,
 				     &ogates[i]);
+
+			/* Record gate so we can use this if mangled */
+			struct ether_hdr *eth;
+			struct ipv4_hdr *ip;
+			if (r == 0) {
+				eth = (struct ether_hdr*)snb_head_data(snb);
+				ip = (struct ipv4_hdr *)(eth + 1);
+				ip->packet_id = ogates[i];
+				ip->hdr_checksum = 0;
+				ip->hdr_checksum = rte_ipv4_cksum(ip); 
+			}
 		}
 		priv->bytes_tx[ogates[i]] += 
 			(snb_total_len(snb) + pkt_overhead);

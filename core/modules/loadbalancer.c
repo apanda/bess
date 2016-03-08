@@ -144,6 +144,8 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 		if (r == 0) {
 			/* Consistent hashing to make sure no race. */
 			uint32_t hash = ftb_hash(&flow);
+			struct ether_hdr *eth;
+			struct ipv4_hdr *ip;
 			gate = hash % gates;
 			log_info("Assigning flow %u %u %d %d"
 				" to gate %d adding for %d\n", 
@@ -163,6 +165,12 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 					priv->reverse_translate_gates[gate]);
 			dht_add_flow(priv->dht, &flow,
 					priv->reverse_translate_gates[gate]);
+
+			eth = (struct ether_hdr*)snb_head_data(snb);
+			ip = (struct ipv4_hdr *)(eth + 1);
+			ip->packet_id = priv->forward_translate_gates[gate];
+			ip->hdr_checksum = 0;
+			ip->hdr_checksum = rte_ipv4_cksum(ip); 
 		}
 		ogates[i] = gate;
 		/* Add ethernet overhead here since we only report bytes, making

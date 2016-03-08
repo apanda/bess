@@ -39,6 +39,8 @@ static struct snobj *mangled_get_desc(const struct module *m) {
 
 int dht_check_flow(struct module* m, struct flow *flow);
 
+int dht_add_flow(struct module* m, struct flow *flow, gate_t gate);
+
 __attribute__((optimize("unroll-loops")))
 static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 	struct mangled_priv *priv = get_priv(m);
@@ -48,15 +50,31 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 		struct snbuf *snb = batch->pkts[i];
 		struct flow flow;
 		int r = extract_flow(snb, &flow);
+		int rp = 0;
 		if (r == 0) {
-			/* Check if reverse flow is in flow table */
+			struct ether_hdr *eth;
+			struct ipv4_hdr *ip;
+			rp = dht_check_flow(priv->dht, &flow);
 			reverse_flow(&flow);
 			r = dht_check_flow(priv->dht, &flow);
-			if (r == 0) {
+			/* Check if flow is in the table. If we mangle we never
+			 * write forward flow in local table. This ensures that
+			 * we repeatedly send mangled packets through the
+			 * remote node, ensuring packet losses do not lead to
+			 * failures.*/
+			if (rp == 0) {
 				ogates[i] = 0;
 			} else {
 				ogates[i] = 1;
 			}
+			eth = (struct ether_hdr*)snb_head_data(snb);
+			ip = (struct ipv4_hdr *)(eth + 1);
+			if (r != 0) {
+				dht_add_flow(priv->dht, &flow, ip->packet_id);
+			}
+			ip->packet_id = 0;
+			ip->hdr_checksum = 0;
+			ip->hdr_checksum = rte_ipv4_cksum(ip); 
 		} else {
 			/* This really should not happen given the setup */
 			log_warn("Could not extract flow");
