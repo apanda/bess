@@ -8,9 +8,11 @@
 
 struct lb_priv {
 	struct module *dht;
-	gate_t gates;
+	gate_t connected_gates;
+	gate_t usable_gates;
 	gate_t forward_translate_gates[MAX_GATES];
 	gate_t reverse_translate_gates[MAX_GATES];
+	gate_t active_gates[MAX_GATES];
 	uint64_t bytes_tx[MAX_OUTPUT_GATES];
 };
 
@@ -33,8 +35,9 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 	}
 	struct snobj *gates = snobj_map_get(arg, "num_gates");
 	if (gates != NULL && snobj_type(gates) == TYPE_INT) {
-		priv->gates = snobj_int_get(gates);
-		if (priv->gates > MAX_GATES) {
+		priv->usable_gates = 
+			priv->connected_gates = snobj_int_get(gates);
+		if (priv->connected_gates > MAX_GATES) {
 			return snobj_err(EINVAL,
 					"Cannot support more than %d gates",
 					(int)MAX_GATES);
@@ -42,7 +45,7 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 		struct snobj *gate_mapping = snobj_map_get(arg, "fwd_gate_map");
 		if (gate_mapping == NULL || 
 		    snobj_type(gate_mapping) != TYPE_LIST ||
-		    snobj_size(gate_mapping) != priv->gates) {
+		    snobj_size(gate_mapping) != priv->connected_gates) {
 		    	return snobj_err(EINVAL,
 		    			"Must supply a mapping from "
 		    			"load balancer gate to DHT fwd gate");
@@ -55,7 +58,7 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 		gate_mapping = snobj_map_get(arg, "rev_gate_map");
 		if (gate_mapping == NULL || 
 		    snobj_type(gate_mapping) != TYPE_LIST ||
-		    snobj_size(gate_mapping) != priv->gates) {
+		    snobj_size(gate_mapping) != priv->connected_gates) {
 		    	return snobj_err(EINVAL,
 		    			"Must supply a mapping from "
 		    			"load balancer gate to DHT rev gate");
@@ -65,8 +68,14 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 				snobj_int_get(snobj_list_get(gate_mapping, i));
 		}
 
+		/* Mark all gates as usable */
+		for (int i = 0; i < priv->connected_gates; i++) {
+			priv->active_gates[i] = i;
+		}
+
 	} else {
-		priv->gates = 0;
+		priv->connected_gates = 0;
+		priv->usable_gates = 0;
 	}
 	return NULL;
 }
@@ -78,11 +87,20 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 	struct lb_priv *priv = get_priv(m);
 	// FIXME: Removing is hard just add or change mapping for now.
 	if (snobj_map_get(q, "add")) {
+		struct snobj *r = snobj_map();
 		int fwd_gate = snobj_eval_int(q, "add.fwd_gate_map");
-		priv->forward_translate_gates[priv->gates] = fwd_gate;
 		int rev_gate = snobj_eval_int(q, "add.rev_gate_map");
-		priv->reverse_translate_gates[priv->gates] = rev_gate;
-		priv->gates += 1;
+		int add_active = snobj_eval_int(q, "add.active");
+		priv->forward_translate_gates[priv->connected_gates] = fwd_gate;
+		priv->reverse_translate_gates[priv->connected_gates] = rev_gate;
+		if (add_active) {
+			priv->active_gates[priv->usable_gates] = 
+				priv->connected_gates;
+			priv->usable_gates += 1;
+		}
+		snobj_map_set(r, "gate", snobj_int(priv->connected_gates)); 
+		priv->connected_gates += 1;
+		return r;
 	} else if (snobj_map_get(q, "change_mapping")) {
 		gate_t to_change = (gate_t)snobj_eval_int(q, 
 				"change_mapping.gate");
@@ -90,7 +108,7 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 				"change_mapping.fwd_map");
 		gate_t rev_new_val = (gate_t)snobj_eval_int(q,
 				"change_mapping.rev_map");
-		if (to_change >= priv->gates) {
+		if (to_change >= priv->connected_gates) {
 			return snobj_err(EINVAL,
 					"Gate %d is not active", to_change);
 		}
@@ -129,7 +147,7 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 	struct lb_priv *priv = get_priv(m);
 	gate_t ogates[MAX_PKT_BURST];
 	int i;
-	gate_t gates = priv->gates;
+	gate_t gates = priv->usable_gates;
 	const int pkt_overhead = 24;
 	if (gates == 0) {
 		/* Just act like a sink */
@@ -146,7 +164,8 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 			uint32_t hash = ftb_hash(&flow);
 			struct ether_hdr *eth;
 			struct ipv4_hdr *ip;
-			gate = hash % gates;
+			gate = hash % priv->usable_gates;
+			gate = priv->active_gates[gate];
 			log_info("Assigning flow %u %u %d %d"
 				" to gate %d adding for %d\n", 
 					flow.src_addr, flow.dst_addr,
