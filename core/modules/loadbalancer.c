@@ -96,11 +96,54 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 		if (add_active) {
 			priv->active_gates[priv->usable_gates] = 
 				priv->connected_gates;
-			priv->usable_gates += 1;
+			priv->usable_gates++;
 		}
 		snobj_map_set(r, "gate", snobj_int(priv->connected_gates)); 
 		priv->connected_gates += 1;
 		return r;
+	} else if (snobj_map_get(q, "activate_gate")) {
+		int gate = snobj_eval_int(q, "activate_gate.gate");
+		if (gate >= priv->connected_gates) {
+			return snobj_err(EINVAL,
+					"Gate %d is not connected", gate);
+		}
+		if (priv->usable_gates >= MAX_GATES) {
+			return snobj_err(ENOMEM,
+					"Cannot activate more than %d gates",
+					MAX_GATES);
+		}
+		for (int i = 0; i < priv->usable_gates; i++) {
+			if (priv->active_gates[i] == gate) {
+				return snobj_err(EEXIST,
+						"Gate %d is already active",
+						gate);
+			}
+		}
+		priv->active_gates[priv->usable_gates] = gate;
+		priv->usable_gates++;
+		return NULL;
+	} else if (snobj_map_get(q, "deactivate_gate")) {
+		int gate = snobj_eval_int(q, "deactivate_gate.gate");
+		int idx = 0;
+		int found = 0;
+		if (gate >= priv->connected_gates) {
+			return snobj_err(EINVAL,
+					"Gate %d is not connected", gate);
+		}
+		for (int i = 0; i < priv->usable_gates; i++) {
+			if (priv->active_gates[i] != gate) {
+				priv->active_gates[idx++] = 
+					priv->active_gates[i];
+			} else {
+				found = 1;
+			}
+		}
+		if (!found) {
+			return snobj_err(ENOENT,
+					"Gate %d not found", gate);
+		}
+		priv->usable_gates = idx;
+		return NULL;
 	} else if (snobj_map_get(q, "change_mapping")) {
 		gate_t to_change = (gate_t)snobj_eval_int(q, 
 				"change_mapping.gate");
@@ -114,6 +157,7 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 		}
 		priv->forward_translate_gates[to_change] = fwd_new_val;
 		priv->reverse_translate_gates[to_change] = rev_new_val;
+		return NULL;
 	} else if (snobj_map_get(q, "get_tx_stats")) {
 		struct snobj *gates = snobj_map_get(q, "get_tx_stats");
 		struct snobj *stats = snobj_list();
@@ -133,7 +177,7 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 		}
 		return stats;
 	}
-	return NULL;
+	return snobj_err(EINVAL, "Unrecognized command");
 }
 
 static struct snobj *lb_get_desc(const struct module *m) {
