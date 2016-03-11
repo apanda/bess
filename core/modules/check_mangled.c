@@ -70,6 +70,10 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 			eth = (struct ether_hdr*)snb_head_data(snb);
 			ip = (struct ipv4_hdr *)(eth + 1);
 			if (r != 0) {
+				if (ip->packet_id & 0x8000) {
+					log_warn("Found mangled reverse "
+							"packet\n");
+				}
 				dht_add_flow(priv->dht, &flow, ip->packet_id);
 			}
 			ip->packet_id = 0;

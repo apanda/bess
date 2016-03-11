@@ -208,6 +208,7 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 			uint32_t hash = ftb_hash(&flow);
 			struct ether_hdr *eth;
 			struct ipv4_hdr *ip;
+			gate_t rev_gate;
 			gate = hash % priv->usable_gates;
 			gate = priv->active_gates[gate];
 			log_info("Assigning flow %u %u %d %d"
@@ -226,8 +227,8 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 					flow.src_port, flow.dst_port,
 					gate, 
 					priv->reverse_translate_gates[gate]);
-			dht_add_flow(priv->dht, &flow,
-					priv->reverse_translate_gates[gate]);
+			rev_gate = priv->reverse_translate_gates[gate] | 0x8000;
+			dht_add_flow(priv->dht, &flow, rev_gate);
 
 			eth = (struct ether_hdr*)snb_head_data(snb);
 			ip = (struct ipv4_hdr *)(eth + 1);

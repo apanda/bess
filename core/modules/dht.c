@@ -282,17 +282,19 @@ static void dht_process_batch(struct module *m, struct pkt_batch *batch)
 			/* Forward to default gate */
 			ogates[i] = priv->sink_gate;
 		} else {
+			gate_t entry = 0;
 			r = ftb_find(&priv->flow_table,
 				     &flow,
-				     &ogates[i]);
-
+				     &entry);
+			/* We are using the 16th bit to indicate reverse */
+			ogates[i] = entry & ~0x8000;
 			/* Record gate so we can use this if mangled */
 			struct ether_hdr *eth;
 			struct ipv4_hdr *ip;
 			if (r == 0) {
 				eth = (struct ether_hdr*)snb_head_data(snb);
 				ip = (struct ipv4_hdr *)(eth + 1);
-				ip->packet_id = ogates[i];
+				ip->packet_id = entry;
 				ip->hdr_checksum = 0;
 				ip->hdr_checksum = rte_ipv4_cksum(ip); 
 			}
