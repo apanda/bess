@@ -111,9 +111,11 @@ static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch)
 	struct fix_mangled_priv *priv = get_priv(m);
 	int i;
 	struct ether_addr src;
+	gate_t ogates[MAX_PKT_BURST];
 	for (i = 0; i < batch->cnt; i++) {
 		struct snbuf *snb = batch->pkts[i];
 		struct ether_hdr* hdr = (struct ether_hdr*)snb_head_data(snb);
+		ogates[i] = 0;
 		if (hdr->ether_type == rte_cpu_to_be_16(TUNNEL_ETHER_TYPE)) {
 			int found = 0;
 			gate_t gate = 0;
@@ -150,9 +152,10 @@ static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch)
 				log_warn("Could not find gate for mangled"
 						" flow %s\n", s_str);
 			}
+			ogates[i] = 1;
 		}	
 	}
-	run_next_module(m, batch);
+	run_split(m, ogates, batch);
 }
 
 static const struct mclass fix_mangled = {

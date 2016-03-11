@@ -62,7 +62,7 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 			 * we repeatedly send mangled packets through the
 			 * remote node, ensuring packet losses do not lead to
 			 * failures.*/
-			if (rp == 0) {
+			if (r == 0) {
 				ogates[i] = 0;
 			} else {
 				ogates[i] = 1;
@@ -74,6 +74,8 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 					log_warn("Found mangled reverse "
 							"packet\n");
 				}
+				dht_add_flow(priv->dht, &flow, ip->packet_id + 1);
+				reverse_flow(&flow);
 				dht_add_flow(priv->dht, &flow, ip->packet_id);
 			}
 			ip->packet_id = 0;

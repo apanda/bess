@@ -211,22 +211,10 @@ static void lb_process_batch(struct module *m, struct pkt_batch *batch) {
 			gate_t rev_gate;
 			gate = hash % priv->usable_gates;
 			gate = priv->active_gates[gate];
-			log_info("Assigning flow %u %u %d %d"
-				" to gate %d adding for %d\n", 
-					flow.src_addr, flow.dst_addr,
-					flow.src_port, flow.dst_port,
-					gate, 
-					priv->forward_translate_gates[gate]);
 			// FIXME: Error handling/trigger GC or something.
 			dht_add_flow(priv->dht, &flow, 
 					priv->forward_translate_gates[gate]);
 			reverse_flow(&flow);
-			log_info("Assigning flow %u %u %u %u"
-				" to gate %d adding for %d\n", 
-					flow.src_addr, flow.dst_addr,
-					flow.src_port, flow.dst_port,
-					gate, 
-					priv->reverse_translate_gates[gate]);
 			rev_gate = priv->reverse_translate_gates[gate] | 0x8000;
 			dht_add_flow(priv->dht, &flow, rev_gate);
 
