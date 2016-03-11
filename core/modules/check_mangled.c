@@ -50,33 +50,37 @@ static void mangled_process_batch(struct module *m, struct pkt_batch *batch) {
 		struct snbuf *snb = batch->pkts[i];
 		struct flow flow;
 		int r = extract_flow(snb, &flow);
-		int rp = 0;
+		ogates[i] = 0;
 		if (r == 0) {
 			struct ether_hdr *eth;
 			struct ipv4_hdr *ip;
-			rp = dht_check_flow(priv->dht, &flow);
-			reverse_flow(&flow);
+			/*rp = dht_check_flow(priv->dht, &flow);*/
+			/*reverse_flow(&flow);*/
 			r = dht_check_flow(priv->dht, &flow);
+#if 0
+			/* FIXME: This somehow causes a burst in traffic */
 			/* Check if flow is in the table. If we mangle we never
 			 * write forward flow in local table. This ensures that
 			 * we repeatedly send mangled packets through the
 			 * remote node, ensuring packet losses do not lead to
 			 * failures.*/
-			if (r == 0) {
+			if (r == 0 || rp == 0) {
 				ogates[i] = 0;
 			} else {
 				ogates[i] = 1;
 			}
+#endif
 			eth = (struct ether_hdr*)snb_head_data(snb);
 			ip = (struct ipv4_hdr *)(eth + 1);
 			if (r != 0) {
+				gate_t gate = ip->packet_id & ~0x8000;
 				if (ip->packet_id & 0x8000) {
 					log_warn("Found mangled reverse "
 							"packet\n");
 				}
-				dht_add_flow(priv->dht, &flow, ip->packet_id + 1);
+				dht_add_flow(priv->dht, &flow, gate);
 				reverse_flow(&flow);
-				dht_add_flow(priv->dht, &flow, ip->packet_id);
+				dht_add_flow(priv->dht, &flow, gate + 1);
 			}
 			ip->packet_id = 0;
 			ip->hdr_checksum = 0;

@@ -121,6 +121,7 @@ static void fix_mangled_process_batch(struct module *m, struct pkt_batch *batch)
 			gate_t gate = 0;
 			int r = 0;
 			struct flow flow;
+			log_warn("Seeing mangled header\n");
 			src = hdr->s_addr;
 			snb_adj(snb, sizeof(struct ether_hdr));
 			r = extract_flow(snb, &flow);
