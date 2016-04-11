@@ -1,0 +1,8 @@
+softnic.add_worker(0, 4)
+softnic.add_worker(1, 5)
+softnic.add_worker(2, 6)
+softnic.add_worker(3, 7)
+p0 = Port(driver = 'PMD', port_id = 0)
+v0 = Port(driver = 'RteRingVPort')
+PortInc(port=p0) -> PortOut(port=v0)
+PortInc(port=v0) -> PortOut(port=p0)
