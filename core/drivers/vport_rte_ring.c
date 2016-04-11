@@ -19,7 +19,7 @@
 /* This is the same thing as vport_zc except for using rte_ring instead of
  * Bess */
 
-#define SLOTS_PER_LLRING	1024
+#define SLOTS_PER_LLRING	256
 
 /* This watermark is to detect congestion and cache bouncing due to
  * head-eating-tail (needs at least 8 slots less then the total ring slots).

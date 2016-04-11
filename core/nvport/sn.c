@@ -121,7 +121,7 @@ void init_softnic(uint32_t lcore, char *name)
 
 	sprintf(opt_core_bitmap, "0x%lx", cpumask);
 	
-	rte_argc = 7;
+	rte_argc = 9;
 	rte_argv[0] = "";
 	rte_argv[1] = "-c";
 	rte_argv[2] = opt_core_bitmap;
@@ -129,7 +129,9 @@ void init_softnic(uint32_t lcore, char *name)
 	rte_argv[4] = "4";	/* number of mem channels (Sandy/Ivy Bridge) */
 	rte_argv[5] = "--proc-type";
 	rte_argv[6] = "secondary";
-	rte_argv[7] = NULL;
+	rte_argv[7] = "-w";
+	rte_argv[8] = "99:99.0";
+	rte_argv[9] = NULL;
 
 	/* reset getopt() */
 	optind = 0;
