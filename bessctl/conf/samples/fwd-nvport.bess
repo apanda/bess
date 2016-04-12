@@ -1,0 +1,14 @@
+worker_str = $SN_WORKERS!'4,5'
+workers = map(int, worker_str.split(','))
+port_ct = int($SN_PORTS!'1')
+ring_ct = int($SN_RINGS!'1')
+for (idx, worker) in enumerate(workers):
+	bess.add_worker(idx, worker)
+phy_port = Port(driver = 'PMD', pci="02:00.0")
+ring = Port(driver = 'ZeroCopyVPort')
+vout = PortOut(port=ring)
+vinc = PortInc(port=ring)
+
+vinc -> PortOut(port=phy_port)
+
+PortInc(port=phy_port) -> vout

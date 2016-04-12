@@ -1,8 +1,19 @@
-softnic.add_worker(0, 4)
-softnic.add_worker(1, 5)
-softnic.add_worker(2, 6)
-softnic.add_worker(3, 7)
-p0 = Port(driver = 'PMD', port_id = 0)
-v0 = Port(driver = 'RteRingVPort')
-PortInc(port=p0) -> PortOut(port=v0)
-PortInc(port=v0) -> PortOut(port=p0)
+worker_str = $SN_WORKERS!'4,5'
+workers = map(int, worker_str.split(','))
+port_ct = int($SN_PORTS!'1')
+ring_ct = int($SN_RINGS!'1')
+for (idx, worker) in enumerate(workers):
+	bess.add_worker(idx, worker)
+phy_ports = []
+#for port in xrange(port_ct):
+phy_ports.append(Port(driver = 'PMD', pci="02:00.0"))
+rings = []
+for ring in xrange(ring_ct):
+	rings.append(Port(driver = 'RteRingVPort'))
+vout = PortOut(port=rings[0])
+vinc = PortInc(port=rings[-1])
+
+vinc -> PortOut(port=phy_ports[0])
+
+for phy_port in phy_ports:
+	PortInc(port=phy_port) -> vout
