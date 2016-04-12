@@ -64,7 +64,7 @@ void task_detach(struct task *t)
 	c->num_tasks--;
 
 	/* c is up for autofree, and the task t was the last one standing? */
-	if (cdlist_is_empty(&c->tasks) && c->auto_free) {
+	if (cdlist_is_empty(&c->tasks) && c->settings.auto_free) {
 		tc_leave(c);		/* stop scheduling this TC */
 		tc_dec_refcnt(c);	/* release my reference */
 	}
@@ -84,10 +84,20 @@ void assign_default_tc(int wid, struct task *t)
 		.share_resource = RESOURCE_CNT,
 	};
 
-	do {
-		sprintf(params.name, "tc_orphan%d", next_default_tc_id++);
-		c_def = tc_init(workers[wid]->s, &params);
-	} while (ptr_to_err(c_def) == -EEXIST);
+	if (num_module_tasks(t->m) == 1)
+		sprintf(params.name, "_tc_%s", t->m->name);
+	else
+		sprintf(params.name, "_tc_%s_%d", t->m->name, task_to_tid(t));
+
+	c_def = tc_init(workers[wid]->s, &params);
+
+	/* maybe the default name is too long, or already occupied */
+	if (is_err_or_null(c_def)) {
+		do {
+			sprintf(params.name, "_tc_noname%d", next_default_tc_id++);
+			c_def = tc_init(workers[wid]->s, &params);
+		} while (ptr_to_err(c_def) == -EEXIST);
+	}
 	
 	if (is_err(c_def)) {
 		log_err("tc_init() failed\n");
@@ -128,7 +138,7 @@ void process_orphan_tasks()
 		if (get_next_wid(&wid) < 0) {
 			wid = 0;
 			/* There is no active worker. Create one. */
-			launch_worker(wid, 0);
+			launch_worker(wid, global_opts.default_core);
 		}
 
 		assign_default_tc(wid, t);

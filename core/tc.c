@@ -28,10 +28,10 @@ static void tc_add_to_parent_pgroup(struct tc *c, int share_resource)
 	struct cdlist_item *next;
 
 	cdlist_for_each_entry(g, &parent->pgroups, tc) {
-		if (c->priority > g->priority) {
+		if (c->settings.priority > g->priority) {
 			next = &g->tc;
 			goto pgroup_init;
-		} else if (c->priority == g->priority)
+		} else if (c->settings.priority == g->priority)
 			goto pgroup_add;
 	}
 
@@ -47,7 +47,7 @@ pgroup_init:
 	heap_init(&g->pq);
 
 	g->resource = share_resource;
-	g->priority = c->priority;
+	g->priority = c->settings.priority;
 
 	/* fall through */
 
@@ -85,7 +85,7 @@ struct tc *tc_init(struct sched *s, const struct tc_params *params)
 		return err_to_ptr(ret);
 	}
 
-	strcpy(c->name, params->name);
+	c->settings = *params;
 
 	tc_inc_refcnt(c);	/* held by user (the owner) */
 
@@ -94,8 +94,6 @@ struct tc *tc_init(struct sched *s, const struct tc_params *params)
 
 	c->parent = params->parent ? : &s->root;
 	tc_inc_refcnt(c->parent);
-
-	c->auto_free = params->auto_free;
 
 	c->last_tsc = rdtsc();
 
@@ -121,7 +119,6 @@ struct tc *tc_init(struct sched *s, const struct tc_params *params)
 	cdlist_head_init(&c->tasks);
 	cdlist_head_init(&c->pgroups);
 
-	c->priority = params->priority;
 	tc_add_to_parent_pgroup(c, params->share_resource);
 
 	cdlist_add_tail(&s->tcs_all, &c->sched_all);
@@ -154,7 +151,7 @@ void _tc_do_free(struct tc *c)
 		c->s->num_classes--;
 	}
 
-	ns_remove(c->name);
+	ns_remove(c->settings.name);
 
 	memset(c, 0, sizeof(*c));	/* zero out to detect potential bugs */
 	rte_free(c);			/* Note: c is struct sched, if root */
@@ -492,7 +489,7 @@ static char *print_tc_stats_detail(struct sched *s, char *p, int max_cnt)
 
 	cdlist_for_each_entry(c, &s->tcs_all, sched_all) {
 		if (num_printed < max_cnt) {
-			p += sprintf(p, "%12s", c->name);
+			p += sprintf(p, "%12s", c->settings.name);
 		} else {
 			p += sprintf(p, " ...");
 			break;
@@ -560,7 +557,7 @@ static char *print_tc_stats_simple(struct sched *s, char *p, int max_cnt)
 		c->last_stats = c->stats;
 
 		p += sprintf(p, "\tC%s %.1f%%(%.2fM) %.3fMpps %.1fMbps", 
-				c->name, 
+				c->settings.name, 
 				cycles * 100.0 / tsc_hz, 
 				cnt / 1000000.0,
 				pkts / 1000000.0, 

@@ -23,7 +23,7 @@
 
 #include "master.h"
 
-/* Port this SoftNIC instance listens on. 
+/* Port this BESS instance listens on. 
  * Panda came up with this default number */
 #define DEFAULT_PORT 	0x02912		/* 10514 in decimal */
 
@@ -105,7 +105,7 @@ static int init_listen_fd(uint16_t port)
 		exit(EXIT_FAILURE);
 	}
 
-	if (listen(listen_fd, 0) < 0) {
+	if (listen(listen_fd, 10) < 0) {
 		log_perr("listen()");
 		exit(EXIT_FAILURE);
 	}

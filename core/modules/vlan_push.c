@@ -23,10 +23,13 @@ static struct snobj *vpush_query(struct module *m, struct snobj *q)
 	struct vlan_push_priv *priv = get_priv(m);
 	uint16_t tci;
 
-	if (!q || snobj_type(q) != TYPE_INT)
-		return snobj_err(EINVAL, "TCI must be given as an integer");
+	if (!q || !snobj_eval_exists(q, "tci"))
+		return snobj_err(EINVAL, "'tci' must be given as an integer");
 
-	tci = snobj_uint_get(q);
+	tci = snobj_eval_uint(q, "tci");
+
+	if (tci > 0xffff)
+		return snobj_err(EINVAL, "'tci' value should be 0-65535");
 
 	priv->vlan_tag = htonl((0x8100 << 16) | tci);
 	priv->qinq_tag = htonl((0x88a8 << 16) | tci);
@@ -59,11 +62,13 @@ static void vpush_process_batch(struct module *m, struct pkt_batch *batch)
 	for (int i = 0; i < cnt; i++) {
 		struct snbuf *pkt = batch->pkts[i];
 		char *new_head;
-		__m128i ethh;
 		uint16_t tpid;
 
 		if ((new_head = snb_prepend(pkt, 4)) != NULL) {
 			/* shift 12 bytes to the left by 4 bytes */
+#if __SSE4_1__
+			__m128i ethh;
+
 			ethh = _mm_loadu_si128((__m128i *)(new_head + 4));
 			tpid = _mm_extract_epi16(ethh, 6);
 
@@ -73,6 +78,14 @@ static void vpush_process_batch(struct module *m, struct pkt_batch *batch)
 					3);
 
 			_mm_storeu_si128((__m128i *)new_head, ethh);
+#else
+			tpid = *(uint16_t *)(new_head + 16);
+			memmove(new_head, new_head + 4, 12);
+
+			*(uint32_t *)(new_head + 12) = 
+					(tpid == rte_cpu_to_be_16(0x8100)) ?
+						qinq_tag : vlan_tag;
+#endif
 		}
 	}
 		
@@ -82,6 +95,8 @@ static void vpush_process_batch(struct module *m, struct pkt_batch *batch)
 static const struct mclass vlan_push = {
 	.name 			= "VLANPush",
 	.def_module_name 	= "vlan_push",
+	.num_igates 		= 1,
+	.num_ogates		= 1,
 	.priv_size		= sizeof(struct vlan_push_priv),
 	.init 			= vpush_init,
 	.query			= vpush_query,

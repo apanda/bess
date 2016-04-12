@@ -12,12 +12,21 @@
 		assert(ret == 0); \
 	}
 
+typedef uint16_t gate_idx_t;
+
+#define INVALID_GATE		UINT16_MAX
+
+/* A module may have up to MAX_GATES input/output gates (separately). */
+#define MAX_GATES		8192 
+#define DROP_GATE		MAX_GATES
+ct_assert(MAX_GATES < INVALID_GATE);
+ct_assert(DROP_GATE <= MAX_GATES);
 
 struct module;
 struct pkt_batch;
 struct snobj;
 
-typedef void (*proc_func_t)(struct module *, struct pkt_batch *);
+typedef void (*proc_func_t) (struct module *, struct pkt_batch *);
 
 struct mclass
 {
@@ -31,8 +40,9 @@ struct mclass
 	 *   after auto transformation (CamelCase -> camel_case) */
 	const char *def_module_name;
 
-	/* Required: the maximum number of output gates (can be 0) */
-	uint16_t max_gates;
+	/* Required: the maximum number of input/output gates (can be 0) */
+	gate_idx_t num_igates;
+	gate_idx_t num_ogates;
 
 	/* Optional: the size of per-module private data. 0 by default.
 	 *   The memory region will be zero initialized. */

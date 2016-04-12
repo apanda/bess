@@ -135,8 +135,8 @@ static void print_code(char *symbol, int context)
 	FILE *proc;
 
 	/* Symbol examples:
-	 * ./softnic(run_worker+0x8e) [0x419d0e]" */
-	/* ./softnic() [0x4149d8] */
+	 * ./bessd(run_worker+0x8e) [0x419d0e]" */
+	/* ./bessd() [0x4149d8] */
 	sscanf(symbol, "%[^(](%*s [%[^]]]", executable, addr);
 
 	sprintf(cmd, "addr2line -i -f -p -e %s %s 2> /dev/null", executable, addr);
@@ -166,7 +166,7 @@ static void print_code(char *symbol, int context)
 
 		/* addr2line examples:
 		 * sched_free at /home/sangjin/.../tc.c:277 (discriminator 2)
-		 * run_worker at /home/sangjin/softnic/softnic/module.c:653 */
+		 * run_worker at /home/sangjin/bess/core/module.c:653 */
 
 		line[strlen(line) - 1] = '\0';
 
@@ -370,6 +370,7 @@ void dump_types(void)
 	printf("sizeof(task)=%lu\n", sizeof(struct task));
 
 	printf("sizeof(module)=%lu\n", sizeof(struct module));
+	printf("sizeof(gate)=%lu\n", sizeof(struct gate));
 
 	printf("sizeof(worker_context)=%lu\n", sizeof(struct worker_context));
 
