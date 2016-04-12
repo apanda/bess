@@ -3,7 +3,7 @@
 #include "flowtable.h"
 #include <rte_ether.h>
 
-#define MAX_GATES 1024
+#define MAX_LB_GATES 1024
 static const uint16_t TUNNEL_ETHER_TYPE = 0x88B5;
 
 struct gate_translation {
@@ -13,7 +13,7 @@ struct gate_translation {
 
 struct fix_mangled_priv {
 	struct module *dht;
-	struct gate_translation translation[MAX_GATES];
+	struct gate_translation translation[MAX_LB_GATES];
 	int entries;
 };
 
@@ -54,7 +54,7 @@ static struct snobj *fix_mangled_query(struct module *m, struct snobj *q) {
 			return snobj_err(EINVAL,
 					"Servers must be a list");
 		}
-		if (snobj_size(servers) + priv->entries >= MAX_GATES) {
+		if (snobj_size(servers) + priv->entries >= MAX_LB_GATES) {
 			return snobj_err(ENOMEM,
 					"Ran out of slots");
 		}

@@ -12,7 +12,7 @@ struct dht_priv {
 	gate_t default_gate;
 	gate_t sink_gate;
 	// Measure how many bytes are sent to each gate
-	uint64_t bytes_tx[MAX_OUTPUT_GATES];
+	uint64_t bytes_tx[MAX_GATES];
 };
 
 static struct snobj *dht_init(struct module *m, struct snobj *arg)

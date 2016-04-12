@@ -4,16 +4,16 @@
 #include "../time.h"
 
 /* Number of pipelet instances we can balance between, for now */
-#define MAX_GATES 1024
+#define MAX_LB_GATES 1024
 
 struct lb_priv {
 	struct module *dht;
 	gate_t connected_gates;
 	gate_t usable_gates;
-	gate_t forward_translate_gates[MAX_GATES];
-	gate_t reverse_translate_gates[MAX_GATES];
-	gate_t active_gates[MAX_GATES];
-	uint64_t bytes_tx[MAX_OUTPUT_GATES];
+	gate_t forward_translate_gates[MAX_LB_GATES];
+	gate_t reverse_translate_gates[MAX_LB_GATES];
+	gate_t active_gates[MAX_LB_GATES];
+	uint64_t bytes_tx[MAX_GATES];
 };
 
 static struct snobj *lb_init(struct module *m, struct snobj *arg) {
@@ -37,10 +37,10 @@ static struct snobj *lb_init(struct module *m, struct snobj *arg) {
 	if (gates != NULL && snobj_type(gates) == TYPE_INT) {
 		priv->usable_gates = 
 			priv->connected_gates = snobj_int_get(gates);
-		if (priv->connected_gates > MAX_GATES) {
+		if (priv->connected_gates > MAX_LB_GATES) {
 			return snobj_err(EINVAL,
 					"Cannot support more than %d gates",
-					(int)MAX_GATES);
+					(int)MAX_LB_GATES);
 		}
 		struct snobj *gate_mapping = snobj_map_get(arg, "fwd_gate_map");
 		if (gate_mapping == NULL || 
@@ -107,10 +107,10 @@ static struct snobj *lb_query(struct module *m, struct snobj *q) {
 			return snobj_err(EINVAL,
 					"Gate %d is not connected", gate);
 		}
-		if (priv->usable_gates >= MAX_GATES) {
+		if (priv->usable_gates >= MAX_LB_GATES) {
 			return snobj_err(ENOMEM,
 					"Cannot activate more than %d gates",
-					MAX_GATES);
+					MAX_LB_GATES);
 		}
 		for (int i = 0; i < priv->usable_gates; i++) {
 			if (priv->active_gates[i] == gate) {

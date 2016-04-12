@@ -3,9 +3,6 @@
 #include "flowtable.h"
 #include "../time.h"
 
-/* Number of pipelet instances we can balance between, for now */
-#define MAX_GATES 1024
-
 struct e2_out_priv {
 	uint64_t bytes_tx;
 };
