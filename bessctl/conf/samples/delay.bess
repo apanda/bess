@@ -1,0 +1,11 @@
+delay=int($DELAY!'0')
+port_ct = int($SN_PORTS!'1')
+port_prefix=$SN_PFX!"07:00"
+for port in xrange(port_ct):
+	port_id="%s.%d"%(port_prefix, port)
+	port=Port(driver='PMD',pci=port_id)
+	inc = PortInc(port=port)
+	delay = Delay(delay=delay)
+	o = PortOut(port=port)
+	inc -> delay
+	delay -> o
