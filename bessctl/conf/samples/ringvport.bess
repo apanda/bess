@@ -1,4 +1,5 @@
 p = Port(driver = 'RteRingVPort')
+PortInc(port = p) -> PortOut(port = p)
 
-Source() -> PortOut(port=p)
-PortInc(port=p) -> Sink()
+#Source() -> PortOut(port=p)
+#PortInc(port=p) -> Sink()
