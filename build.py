@@ -178,8 +178,11 @@ def configure_dpdk():
         print 'Configuring DPDK...'
         cmd('cp -f %s %s' % (DPDK_BASE_CONFIG, DPDK_FINAL_CONFIG))
 
-        check_bnx()
-        check_mlx()
+        # check_bnx()
+        set_config(DPDK_FINAL_CONFIG, 'CONFIG_RTE_LIBRTE_BNX2X_PMD', 'n')
+        # check_mlx()
+        set_config(DPDK_FINAL_CONFIG, 'CONFIG_RTE_LIBRTE_MLX4_PMD', 'n')
+        set_config(DPDK_FINAL_CONFIG, 'CONFIG_RTE_LIBRTE_MLX5_PMD', 'n')
 
         generate_extra_mk()
 
