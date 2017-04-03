@@ -14,6 +14,8 @@
 #include <stack>
 #include <utility>
 #include <vector>
+#include <memory>
+#include <cassert>
 
 #include <glog/logging.h>
 
@@ -249,10 +251,13 @@ class CuckooMap {
       std::numeric_limits<EntryIndex>::max();
 
   struct Bucket {
-    HashResult hash_values[kEntriesPerBucket];
-    EntryIndex entry_indices[kEntriesPerBucket];
+    std::vector<HashResult> hash_values;
+    std::vector<EntryIndex> entry_indices;
 
-    Bucket() : hash_values(), entry_indices() {}
+    Bucket() : hash_values(kEntriesPerBucket),
+	entry_indices(kEntriesPerBucket) {}
+    Bucket(Bucket&&) = default;
+    Bucket(Bucket&) = delete;
   };
 
   // Push an unused entry index back to the  stack
@@ -279,7 +284,7 @@ class CuckooMap {
     }
 
     EntryIndex free_idx = PopFreeEntryIndex();
-
+    CHECK(slot_idx < (int)bucket.entry_indices.size());
     bucket.hash_values[slot_idx] = Hash(key, hasher);
     bucket.entry_indices[slot_idx] = free_idx;
 
@@ -459,7 +464,6 @@ class CuckooMap {
   void ExpandEntries() {
     size_t old_size = entries_.size();
     size_t new_size = old_size + old_size / 2;
-
     entries_.resize(new_size);
 
     for (EntryIndex i = new_size - 1; i >= old_size; --i) {
@@ -469,21 +473,20 @@ class CuckooMap {
 
   // Resize the space of buckets, and rehash existing entries
   void ExpandBuckets(const H& hasher, const E& eq) {
-    CuckooMap<K, V, H, E> bigger(buckets_.size() * 2, entries_.size());
-
+    auto bigger = std::unique_ptr<CuckooMap<K, V, H, E>>(
+          new CuckooMap<K, V, H, E>(buckets_.size() * 2, entries_.size()));
     for (const auto& e : *this) {
       // While very unlikely, this insert() may cause recursive expansion
-      bool ret = bigger.Insert(e.first, e.second, hasher, eq);
+      bool ret = bigger->Insert(e.first, e.second, hasher, eq);
       if (!ret) {
         return;
       }
     }
-
-    bucket_mask_ = std::move(bigger.bucket_mask_);
-    num_entries_ = bigger.num_entries_;
-    buckets_ = std::move(bigger.buckets_);
-    entries_ = std::move(bigger.entries_);
-    free_entry_indices_ = std::move(bigger.free_entry_indices_);
+    bucket_mask_ = std::move(bigger->bucket_mask_);
+    num_entries_ = bigger->num_entries_;
+    buckets_ = std::move(bigger->buckets_);
+    entries_ = std::move(bigger->entries_);
+    free_entry_indices_ = std::move(bigger->free_entry_indices_);
   }
 
   // # of buckets == mask + 1

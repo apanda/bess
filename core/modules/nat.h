@@ -154,10 +154,12 @@ class FlowHash {
   HashResult operator()(const Flow &key) const {
     HashResult init_val = 0;
 #if __SSE4_2__ && __x86_64
+    CHECK((((uintptr_t)&key.e1) & 0xf) == 0);
+    CHECK((((uintptr_t)&key.e2) & 0xf) == 0);
     init_val = crc32c_sse42_u64(key.e1, init_val);
     init_val = crc32c_sse42_u64(key.e2, init_val);
 #else
-    init_val = rte_hash_crc(key, sizeof(Flow), init_val);
+    init_val = rte_hash_crc(&key, sizeof(Flow), init_val);
 #endif
     return init_val;
   }

@@ -1,12 +1,12 @@
-#include "cuckoo_map.h"
+#include "utils/cuckoo_map.h"
 
+#include "utils/random.h"
 #include <gtest/gtest.h>
-
-#include "random.h"
 
 namespace {
 
 using bess::utils::CuckooMap;
+using bess::utils::HashResult;
 
 // Test Insert function
 TEST(CuckooMapTest, Insert) {
@@ -191,4 +191,21 @@ TEST(CuckooMapTest, RandomTest) {
   }
 }
 
+// Insert stress test
+TEST(CuckooMapTest, InsertStressTest) {
+  typedef size_t key_t;
+  typedef uint16_t value_t;
+  const size_t iterations = 100000000;
+  Random rd;
+  CuckooMap<key_t, value_t> cuckoo;
+
+  for (size_t i = 0; i < iterations; i++) {
+    key_t key = (key_t)rd.Get();
+    value_t value = (value_t)(rd.Get() & 0xffff);
+    cuckoo.Insert(key, value);
+    auto ret = cuckoo.Find(key);
+    CHECK_NOTNULL(ret);
+    EXPECT_EQ(value, ret->second);
+  }
+}
 }  // namespace (unnamed)
